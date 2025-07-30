@@ -1,0 +1,42 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'com.google.protobuf' version '0.9.4'
+}
+
+group = 'ie.nci.energy'
+version = '0.1.0-SNAPSHOT'
+
+application {
+    mainClass = 'org.example.App'
+}
+
+java {
+    toolchain { languageVersion = JavaLanguageVersion.of(17) }
+}
+
+repositories { mavenCentral() }
+
+ext {
+    grpcVersion = '1.63.0'
+    protobufVersion = '3.25.3'
+}
+
+dependencies {
+    implementation "io.grpc:grpc-netty:${grpcVersion}"
+    implementation "io.grpc:grpc-protobuf:${grpcVersion}"
+    implementation "io.grpc:grpc-stub:${grpcVersion}"
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+}
+
+protobuf {
+    protoc { artifact = "com.google.protobuf:protoc:${protobufVersion}" }
+    plugins {
+        grpc { artifact = "io.grpc:protoc-gen-grpc-java:${grpcVersion}" }
+    }
+    generateProtoTasks {
+        all().each { t -> t.plugins { grpc {} } }
+    }
+}
+
+test { useJUnitPlatform() }
