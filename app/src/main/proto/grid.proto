@@ -1,0 +1,10 @@
+syntax = "proto3";
+package energy;
+
+import "google/protobuf/empty.proto";
+
+message SpotPrice { float eur_per_kwh = 1; }
+
+service GridService {
+  rpc GetSpotPrice (google.protobuf.Empty) returns (SpotPrice);
+}

@@ -1,0 +1,22 @@
+syntax = "proto3";
+package energy;
+import "power.proto";
+
+message ChargeSample {
+  float amps  = 1;
+  float volts = 2;
+}
+
+message ChargeSummary {
+  float avg_amps  = 1;
+  float avg_volts = 2;
+}
+
+message ChargeRequest  { float target_soc_percent   = 1; }
+message ChargeStatus   { float current_soc_percent  = 1; }
+
+service BatteryService {
+  // send a burst of samples and get one summary back
+  rpc SendChargeSamples (stream ChargeSample) returns (ChargeSummary);
+  rpc ChargeCycle       (stream ChargeRequest) returns (stream ChargeStatus);
+}

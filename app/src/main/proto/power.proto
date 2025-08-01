@@ -1,0 +1,7 @@
+syntax = "proto3";
+package energy;
+
+message PowerReading {
+  int64 timestamp_ms = 1;
+  float watts        = 2;
+}
