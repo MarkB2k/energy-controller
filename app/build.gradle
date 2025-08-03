@@ -31,15 +31,10 @@ dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
 }
 
-
 protobuf {
     protoc { artifact = "com.google.protobuf:protoc:${protobufVersion}" }
-    plugins {
-        grpc { artifact = "io.grpc:protoc-gen-grpc-java:${grpcVersion}" }
-    }
-    generateProtoTasks {
-        all().each { t -> t.plugins { grpc {} } }
-    }
+    plugins { grpc { artifact = "io.grpc:protoc-gen-grpc-java:${grpcVersion}" } }
+    generateProtoTasks { all().each { t -> t.plugins { grpc {} } } }
 }
 tasks.register('runSolarServer', JavaExec) {
     mainClass = 'energy.SolarServer'
@@ -61,4 +56,9 @@ tasks.register('runGridClient', JavaExec) {
     mainClass = 'energy.GridClient'
     classpath = sourceSets.main.runtimeClasspath
 }
+tasks.register('runDiscover', JavaExec) {
+    mainClass = 'energy.DiscoverServices'
+    classpath = sourceSets.main.runtimeClasspath
+}
+
 test { useJUnitPlatform() }
