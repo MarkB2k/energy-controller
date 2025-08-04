@@ -16,7 +16,7 @@ public class GridServer {
                 .start();
         System.out.println("Grid gRPC server started on port " + port);
 
-        JmDNS jmdns = JmDNS.create(InetAddress.getLocalHost());
+        JmDNS jmdns = JmDNS.create(InetAddress.getByName("192.168.0.253"));
         ServiceInfo info = ServiceInfo.create("_grid._tcp.local.", "grid-service", port, "grpc=GridService");
         jmdns.registerService(info);
         System.out.println("jmDNS registered: " + info.getType() + " " + info.getName());

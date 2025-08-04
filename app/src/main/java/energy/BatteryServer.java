@@ -16,7 +16,7 @@ public class BatteryServer {
                 .start();
         System.out.println("Battery gRPC server started on port " + port);
 
-        JmDNS jmdns = JmDNS.create(InetAddress.getLocalHost());
+        JmDNS jmdns = JmDNS.create(InetAddress.getByName("192.168.0.253"));
         ServiceInfo info = ServiceInfo.create("_battery._tcp.local.", "battery-service", port, "grpc=BatteryService");
         jmdns.registerService(info);
         System.out.println("jmDNS registered: " + info.getType() + " " + info.getName());
