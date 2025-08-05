@@ -14,8 +14,15 @@ public class ControllerGui extends JFrame {
     private final JLabel solarAddr = new JLabel("unknown");
     private final JLabel batteryAddr = new JLabel("unknown");
     private final JLabel gridAddr = new JLabel("unknown");
+
     private final JTextArea solarLog = new JTextArea(12, 40);
     private final AtomicReference<ManagedChannel> solarChannel = new AtomicReference<>(null);
+
+    private final JLabel batteryAvg = new JLabel("-");
+    private final JLabel batterySoc = new JLabel("-");
+    private final AtomicReference<ManagedChannel> batteryChannel = new AtomicReference<>(null);
+    private final AtomicReference<StreamObserver<ChargeRequest>> batteryReq = new AtomicReference<>(null);
+
     private final JButton discoverBtn = new JButton("Discover");
 
     public ControllerGui() {
@@ -57,6 +64,28 @@ public class ControllerGui extends JFrame {
         JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT));
         p.add(new JLabel("address:"));
         p.add(batteryAddr);
+
+        JButton avgBtn = new JButton("Avg from samples");
+        avgBtn.addActionListener(e -> sendBatterySamples());
+        p.add(avgBtn);
+        p.add(new JLabel("avg:"));
+        p.add(batteryAvg);
+
+        JButton connect = new JButton("Connect");
+        JButton set60 = new JButton("Set 60%");
+        JButton set75 = new JButton("Set 75%");
+        JButton stop = new JButton("Stop");
+        connect.addActionListener(e -> connectBatteryBidi());
+        set60.addActionListener(e -> sendTarget(60f));
+        set75.addActionListener(e -> sendTarget(75f));
+        stop.addActionListener(e -> stopBattery());
+        p.add(connect);
+        p.add(set60);
+        p.add(set75);
+        p.add(stop);
+        p.add(new JLabel("state of charge:"));
+        p.add(batterySoc);
+
         return p;
     }
 
@@ -124,6 +153,72 @@ public class ControllerGui extends JFrame {
 
     private void stopSolar() {
         ManagedChannel ch = solarChannel.getAndSet(null);
+        if (ch != null) ch.shutdownNow();
+    }
+
+    private void sendBatterySamples() {
+    String addr = batteryAddr.getText();
+    if (!addr.contains(":")) return;
+    new Thread(() -> {
+        try {
+            String[] hp = addr.split(":");
+            ManagedChannel ch = ManagedChannelBuilder.forAddress(hp[0], Integer.parseInt(hp[1])).usePlaintext().build();
+            BatteryServiceGrpc.BatteryServiceStub stub = BatteryServiceGrpc.newStub(ch);
+
+            java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+
+            StreamObserver<ChargeSummary> out = new StreamObserver<>() {
+                @Override public void onNext(ChargeSummary s) {
+                    SwingUtilities.invokeLater(() -> batteryAvg.setText(s.getAvgAmps() + "A " + s.getAvgVolts() + "V"));
+                }
+                @Override public void onError(Throwable t) {
+                    SwingUtilities.invokeLater(() -> batteryAvg.setText("-"));
+                    latch.countDown();
+                }
+                @Override public void onCompleted() {
+                    latch.countDown();
+                }
+            };
+
+            StreamObserver<ChargeSample> in = stub.sendChargeSamples(out);
+            in.onNext(ChargeSample.newBuilder().setAmps(5).setVolts(12).build());
+            in.onNext(ChargeSample.newBuilder().setAmps(6).setVolts(12).build());
+            in.onNext(ChargeSample.newBuilder().setAmps(7).setVolts(12).build());
+            in.onCompleted();
+
+            latch.await(3, java.util.concurrent.TimeUnit.SECONDS);
+            ch.shutdownNow();
+        } catch (Exception ignored) { }
+    }).start();
+}
+
+
+    private void connectBatteryBidi() {
+        stopBattery();
+        String addr = batteryAddr.getText();
+        if (!addr.contains(":")) return;
+        String[] hp = addr.split(":");
+        ManagedChannel ch = ManagedChannelBuilder.forAddress(hp[0], Integer.parseInt(hp[1])).usePlaintext().build();
+        batteryChannel.set(ch);
+        BatteryServiceGrpc.BatteryServiceStub stub = BatteryServiceGrpc.newStub(ch);
+        StreamObserver<ChargeStatus> out = new StreamObserver<>() {
+            @Override public void onNext(ChargeStatus s) { SwingUtilities.invokeLater(() -> batterySoc.setText(s.getCurrentSocPercent() + "%")); }
+            @Override public void onError(Throwable t) { SwingUtilities.invokeLater(() -> batterySoc.setText("-")); }
+            @Override public void onCompleted() { }
+        };
+        StreamObserver<ChargeRequest> in = stub.chargeCycle(out);
+        batteryReq.set(in);
+    }
+
+    private void sendTarget(float v) {
+        StreamObserver<ChargeRequest> in = batteryReq.get();
+        if (in != null) in.onNext(ChargeRequest.newBuilder().setTargetSocPercent(v).build());
+    }
+
+    private void stopBattery() {
+        StreamObserver<ChargeRequest> in = batteryReq.getAndSet(null);
+        if (in != null) in.onCompleted();
+        ManagedChannel ch = batteryChannel.getAndSet(null);
         if (ch != null) ch.shutdownNow();
     }
 
