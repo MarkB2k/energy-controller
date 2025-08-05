@@ -60,5 +60,12 @@ tasks.register('runDiscover', JavaExec) {
     mainClass = 'energy.DiscoverServices'
     classpath = sourceSets.main.runtimeClasspath
 }
-
+tasks.register('runHealthServer', JavaExec) {
+    mainClass = 'energy.HealthServer'
+    classpath = sourceSets.main.runtimeClasspath
+}
+tasks.register('runHealthClient', JavaExec) {
+    mainClass = 'energy.HealthClient'
+    classpath = sourceSets.main.runtimeClasspath
+}
 test { useJUnitPlatform() }
