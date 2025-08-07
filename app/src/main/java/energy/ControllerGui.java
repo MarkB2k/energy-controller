@@ -3,11 +3,16 @@ package energy;
 import com.google.protobuf.Empty;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import io.grpc.Metadata;
+import io.grpc.Channel;
+import io.grpc.ClientInterceptor;
+import io.grpc.ClientInterceptors;
 import io.grpc.stub.StreamObserver;
 
 import javax.jmdns.ServiceInfo;
 import javax.swing.*;
 import java.awt.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class ControllerGui extends JFrame {
@@ -129,14 +134,27 @@ public class ControllerGui extends JFrame {
         return host + ":" + info.getPort();
     }
 
+    private Metadata authHeaders() {
+        Metadata md = new Metadata();
+        Metadata.Key<String> k = Metadata.Key.of("auth-token", Metadata.ASCII_STRING_MARSHALLER);
+        md.put(k, "student-123");
+        return md;
+    }
+
+    private Channel channelWithAuth(ManagedChannel base) {
+        ClientInterceptor auth = io.grpc.stub.MetadataUtils.newAttachHeadersInterceptor(authHeaders());
+        return ClientInterceptors.intercept(base, auth);
+    }
+
     private void startSolar() {
         stopSolar();
         String addr = solarAddr.getText();
         if (!addr.contains(":")) return;
         String[] hp = addr.split(":");
-        ManagedChannel ch = ManagedChannelBuilder.forAddress(hp[0], Integer.parseInt(hp[1])).usePlaintext().build();
-        solarChannel.set(ch);
-        SolarServiceGrpc.SolarServiceStub stub = SolarServiceGrpc.newStub(ch);
+        ManagedChannel base = ManagedChannelBuilder.forAddress(hp[0], Integer.parseInt(hp[1])).usePlaintext().build();
+        solarChannel.set(base);
+        Channel ch = channelWithAuth(base);
+        SolarServiceGrpc.SolarServiceStub stub = SolarServiceGrpc.newStub(ch).withDeadlineAfter(60, TimeUnit.SECONDS);
         solarLog.setText("");
         stub.streamPower(Empty.getDefaultInstance(), new StreamObserver<PowerReading>() {
             @Override public void onNext(PowerReading v) {
@@ -162,8 +180,9 @@ public class ControllerGui extends JFrame {
     new Thread(() -> {
         try {
             String[] hp = addr.split(":");
-            ManagedChannel ch = ManagedChannelBuilder.forAddress(hp[0], Integer.parseInt(hp[1])).usePlaintext().build();
-            BatteryServiceGrpc.BatteryServiceStub stub = BatteryServiceGrpc.newStub(ch);
+            ManagedChannel base = ManagedChannelBuilder.forAddress(hp[0], Integer.parseInt(hp[1])).usePlaintext().build();
+            Channel ch = channelWithAuth(base);
+            BatteryServiceGrpc.BatteryServiceStub stub = BatteryServiceGrpc.newStub(ch).withDeadlineAfter(3, TimeUnit.SECONDS);
 
             java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
 
@@ -187,7 +206,7 @@ public class ControllerGui extends JFrame {
             in.onCompleted();
 
             latch.await(3, java.util.concurrent.TimeUnit.SECONDS);
-            ch.shutdownNow();
+            base.shutdownNow();
         } catch (Exception ignored) { }
     }).start();
 }
@@ -198,9 +217,10 @@ public class ControllerGui extends JFrame {
         String addr = batteryAddr.getText();
         if (!addr.contains(":")) return;
         String[] hp = addr.split(":");
-        ManagedChannel ch = ManagedChannelBuilder.forAddress(hp[0], Integer.parseInt(hp[1])).usePlaintext().build();
-        batteryChannel.set(ch);
-        BatteryServiceGrpc.BatteryServiceStub stub = BatteryServiceGrpc.newStub(ch);
+        ManagedChannel base = ManagedChannelBuilder.forAddress(hp[0], Integer.parseInt(hp[1])).usePlaintext().build();
+        batteryChannel.set(base);
+        Channel ch = channelWithAuth(base);
+        BatteryServiceGrpc.BatteryServiceStub stub = BatteryServiceGrpc.newStub(ch).withDeadlineAfter(10, TimeUnit.SECONDS);
         StreamObserver<ChargeStatus> out = new StreamObserver<>() {
             @Override public void onNext(ChargeStatus s) { SwingUtilities.invokeLater(() -> batterySoc.setText(s.getCurrentSocPercent() + "%")); }
             @Override public void onError(Throwable t) { SwingUtilities.invokeLater(() -> batterySoc.setText("-")); }
@@ -226,11 +246,12 @@ public class ControllerGui extends JFrame {
         String addr = gridAddr.getText();
         if (!addr.contains(":")) return;
         String[] hp = addr.split(":");
-        ManagedChannel ch = ManagedChannelBuilder.forAddress(hp[0], Integer.parseInt(hp[1])).usePlaintext().build();
-        GridServiceGrpc.GridServiceBlockingStub stub = GridServiceGrpc.newBlockingStub(ch);
+        ManagedChannel base = ManagedChannelBuilder.forAddress(hp[0], Integer.parseInt(hp[1])).usePlaintext().build();
+        Channel ch = channelWithAuth(base);
+        GridServiceGrpc.GridServiceBlockingStub stub = GridServiceGrpc.newBlockingStub(ch).withDeadlineAfter(1500, TimeUnit.MILLISECONDS);
         SpotPrice p = stub.getSpotPrice(Empty.getDefaultInstance());
         output.setText(p.getEurPerKwh() + " EUR/kWh");
-        ch.shutdownNow();
+        base.shutdownNow();
     }
 
     public static void main(String[] args) {
